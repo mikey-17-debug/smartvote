@@ -1,0 +1,36 @@
+# 课堂评分投票系统 · 本地 MySQL
+#
+# 启动：docker compose up -d
+# 查看：docker compose ps
+# 连接：127.0.0.1:3311  用户 classroom_vote / 密码 123456 / 库 classroom_vote
+# 说明：讲义示例用 3310，但本机 3310 已被 edu_rag 项目的 MySQL 占用，故改用 3311。
+# 停止：docker compose down          （数据保留在 ./volumes/mysql/data）
+# 清库：docker compose down -v 且删除 ./volumes/mysql/data 目录
+
+services:
+  mysql:
+    image: mysql:8.0.40
+    container_name: classroom-vote-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"     # root 密码，一般不用于项目配置
+      MYSQL_DATABASE: classroom_vote    # 项目数据库名
+      MYSQL_USER: classroom_vote        # 项目数据库用户名
+      MYSQL_PASSWORD: "123456"          # 项目数据库密码
+      TZ: Asia/Shanghai                 # 东八区，避免时间差
+    ports:
+      - "3311:3306"                     # 本机端口:容器端口（3310 已被 edu_rag 占用）
+    volumes:
+      - ./volumes/mysql/data:/var/lib/mysql
+      - ./volumes/mysql/conf:/etc/mysql/conf.d
+      - ./volumes/mysql/init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uclassroom_vote", "-p123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
