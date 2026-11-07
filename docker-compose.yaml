@@ -1,13 +1,26 @@
-# 课堂评分投票系统 · 本地 MySQL
+# 课堂评分投票系统 · Docker Compose
 #
-# 启动：docker compose up -d
+# 启动：docker compose up -d        起网页(8080) + MySQL(3311)
 # 查看：docker compose ps
+# 网站：http://localhost:8080/login.html   （账号 admin / 密码 admin123）
 # 连接：127.0.0.1:3311  用户 classroom_vote / 密码 123456 / 库 classroom_vote
 # 说明：讲义示例用 3310，但本机 3310 已被 edu_rag 项目的 MySQL 占用，故改用 3311。
+#       本机 80 端口被其他程序占用，故网页用 8080。
 # 停止：docker compose down          （数据保留在 ./volumes/mysql/data）
 # 清库：docker compose down -v 且删除 ./volumes/mysql/data 目录
 
 services:
+  # 静态网页：nginx 托管 docs/html，改动 html/js 后刷新浏览器即可生效（挂载目录，无需重建）
+  web:
+    image: nginx:latest                # 本机已有该镜像；nginx:alpine 亦可，仅体积更小
+    container_name: classroom-vote-web
+    restart: always
+    ports:
+      - "8080:80"                       # 访问 http://localhost:8080
+    volumes:
+      - ./docs/html:/usr/share/nginx/html:ro
+      - ./volumes/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
   mysql:
     image: mysql:8.0.40
     container_name: classroom-vote-mysql
