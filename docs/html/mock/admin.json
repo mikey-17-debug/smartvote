@@ -1,0 +1,5 @@
+{
+  "username": "admin",
+  "passwordSha256": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+  "note": "演示用管理员账号，密码只保存 SHA-256 摘要。正式环境请由后端从环境变量读取。"
+}

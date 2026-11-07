@@ -1,0 +1,44 @@
+{
+  "questions": [
+    {
+      "id": "q_1001",
+      "title": "课程内容实用性",
+      "description": "讲授的内容对我的学习和工作是否有实际帮助",
+      "scoreMin": 1,
+      "scoreMax": 10,
+      "createdAt": "2026-10-20T09:30:00+08:00"
+    },
+    {
+      "id": "q_1002",
+      "title": "讲师表达与节奏",
+      "description": "讲解是否清晰，节奏是否方便跟上",
+      "scoreMin": 1,
+      "scoreMax": 10,
+      "createdAt": "2026-10-20T09:32:00+08:00"
+    },
+    {
+      "id": "q_1003",
+      "title": "案例与演示质量",
+      "description": "案例是否贴近实战，演示是否充分",
+      "scoreMin": 1,
+      "scoreMax": 10,
+      "createdAt": "2026-10-20T09:34:00+08:00"
+    },
+    {
+      "id": "q_1004",
+      "title": "课堂互动氛围",
+      "description": "提问、讨论与答疑环节的体验",
+      "scoreMin": 1,
+      "scoreMax": 10,
+      "createdAt": "2026-10-21T10:05:00+08:00"
+    },
+    {
+      "id": "q_1005",
+      "title": "项目展示完成度",
+      "description": "小组项目功能完整度与现场展示效果",
+      "scoreMin": 1,
+      "scoreMax": 5,
+      "createdAt": "2026-10-22T14:20:00+08:00"
+    }
+  ]
+}

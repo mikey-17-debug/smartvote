@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>问卷统计 · 课堂评分投票系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f4fa] text-slate-800">
+  <div class="flex min-h-screen">
+    <aside id="sidebar"></aside>
+    <main class="min-w-0 flex-1">
+      <div id="page" class="mx-auto max-w-5xl px-6 py-10"></div>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+  <script>
+    let db = null;
+    let survey = null;
+    let questions = [];
+    let votes = [];
+
+    function renderStats() {
+      const overallAverage = average(
+        votes.flatMap((vote) => vote.answers.map((answer) => answer.score))
+      );
+
+      const questionCards = questions.map((question, index) => {
+        const scores = votes
+          .map((vote) => vote.answers.find((answer) => answer.questionId === question.id))
+          .filter(Boolean)
+          .map((answer) => answer.score);
+        const avg = average(scores);
+        const span = Math.max(question.scoreMax - question.scoreMin, 1);
+        const percent = avg == null ? 0 : Math.min(100, Math.max(0, ((avg - question.scoreMin) / span) * 100));
+
+        return `
+          <div class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-slate-900">
+                  <span class="mr-1.5 text-slate-400">${index + 1}.</span>${escapeHtml(question.title)}
+                </p>
+                <p class="mt-1 text-xs text-slate-500">${scores.length} 份有效评分 · 分值范围 ${question.scoreMin}-${question.scoreMax}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-2xl font-semibold text-transparent">${avg == null ? "-" : avg.toFixed(1)}</p>
+                <p class="mt-0.5 text-xs text-slate-400">平均分</p>
+              </div>
+            </div>
+            <div class="mt-3.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style="width: ${percent.toFixed(1)}%"></div>
+            </div>
+          </div>`;
+      }).join("");
+
+      const voteRows = votes.length
+        ? [...votes]
+            .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
+            .map((vote, index) => `
+              <tr class="border-t border-slate-100 transition hover:bg-slate-50/60">
+                <td class="px-3 py-2.5 text-sm text-slate-400">${index + 1}</td>
+                <td class="px-3 py-2.5 text-sm font-medium text-slate-700">${escapeHtml(vote.voterName || "-")}</td>
+                <td class="px-3 py-2.5 text-sm text-slate-500">${escapeHtml(vote.ip)}</td>
+                <td class="px-3 py-2.5 text-sm text-slate-500">${formatTime(vote.submittedAt)}</td>
+              </tr>`).join("")
+        : `<tr><td colspan="4" class="px-3 py-10 text-center text-sm text-slate-400">还没有人提交</td></tr>`;
+
+      const statusBadge = survey.isOpen
+        ? '<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600"><span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>进行中</span>'
+        : '<span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span>已关闭</span>';
+
+      document.getElementById("page").innerHTML = `
+        <a href="surveys.html" class="inline-flex items-center gap-1 text-sm text-slate-500 transition hover:text-indigo-600">← 返回问卷列表</a>
+
+        <header class="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-2xl font-semibold tracking-tight text-slate-900">${escapeHtml(survey.title)}</h1>
+              ${statusBadge}
+            </div>
+            <p class="mt-1 text-sm text-slate-500">${escapeHtml(survey.description || "暂无说明")}</p>
+          </div>
+          <div class="flex gap-2">
+            <a href="${escapeHtml(voteUrl(survey.id))}" target="_blank" rel="noopener"
+              class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900">打开前台</a>
+            <a href="survey-edit.html?id=${encodeURIComponent(survey.id)}"
+              class="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-violet-500">编辑问卷</a>
+          </div>
+        </header>
+
+        <section class="mt-7 grid gap-4 sm:grid-cols-3">
+          <div class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">提交人数</p>
+            <p class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">${votes.length}</p>
+          </div>
+          <div class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">题目数量</p>
+            <p class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">${questions.length}</p>
+          </div>
+          <div class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+            <p class="text-sm text-slate-500">总体均分</p>
+            <p class="mt-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-2xl font-semibold tracking-tight text-transparent">${overallAverage == null ? "-" : overallAverage.toFixed(1)}</p>
+          </div>
+        </section>
+
+        <section class="mt-8">
+          <h2 class="text-sm font-semibold text-slate-900">各题平均分</h2>
+          <div class="mt-3 space-y-3">${questionCards}</div>
+        </section>
+
+        <section class="mt-8">
+          <h2 class="text-sm font-semibold text-slate-900">答卷列表</h2>
+          <div class="mt-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+            <table class="min-w-full divide-y divide-slate-100">
+              <thead class="bg-slate-50/80">
+                <tr>
+                  <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">#</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">姓名</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">IP</th>
+                  <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wide text-slate-400">提交时间</th>
+                </tr>
+              </thead>
+              <tbody>${voteRows}</tbody>
+            </table>
+          </div>
+        </section>`;
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!mountAdmin("surveys")) return;
+      const surveyId = getQuery("id");
+
+      try {
+        db = await loadDB();
+        survey = db.surveys.find((s) => s.id === surveyId);
+        if (!survey) {
+          document.getElementById("page").innerHTML = `
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+              <h2 class="font-semibold text-amber-800">问卷不存在</h2>
+              <p class="mt-2 text-sm text-amber-700">可能已被删除，请返回问卷列表查看。</p>
+              <a href="surveys.html" class="mt-4 inline-block rounded-xl bg-amber-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-amber-500">返回问卷列表</a>
+            </div>`;
+          return;
+        }
+
+        questions = survey.questionIds
+          .map((id) => db.questions.find((q) => q.id === id))
+          .filter(Boolean);
+        votes = surveyVotes(db, survey.id);
+        renderStats();
+      } catch (err) {
+        showFatal(err);
+      }
+    });
+  </script>
+</body>
+</html>

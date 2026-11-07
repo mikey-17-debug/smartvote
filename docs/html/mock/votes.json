@@ -1,0 +1,69 @@
+{
+  "votes": [
+    {
+      "id": "v_3001",
+      "surveyId": "s_2001",
+      "ip": "192.168.1.21",
+      "voterName": "张三",
+      "answers": [
+        { "questionId": "q_1005", "score": 4 },
+        { "questionId": "q_1001", "score": 9 },
+        { "questionId": "q_1002", "score": 8 },
+        { "questionId": "q_1003", "score": 9 }
+      ],
+      "submittedAt": "2026-10-23T10:12:00+08:00"
+    },
+    {
+      "id": "v_3002",
+      "surveyId": "s_2001",
+      "ip": "192.168.1.35",
+      "voterName": "李四",
+      "answers": [
+        { "questionId": "q_1005", "score": 5 },
+        { "questionId": "q_1001", "score": 8 },
+        { "questionId": "q_1002", "score": 9 },
+        { "questionId": "q_1003", "score": 7 }
+      ],
+      "submittedAt": "2026-10-23T10:15:00+08:00"
+    },
+    {
+      "id": "v_3003",
+      "surveyId": "s_2001",
+      "ip": "192.168.1.42",
+      "voterName": "王五",
+      "answers": [
+        { "questionId": "q_1005", "score": 3 },
+        { "questionId": "q_1001", "score": 10 },
+        { "questionId": "q_1002", "score": 9 },
+        { "questionId": "q_1003", "score": 8 }
+      ],
+      "submittedAt": "2026-10-23T10:21:00+08:00"
+    },
+    {
+      "id": "v_3004",
+      "surveyId": "s_2001",
+      "ip": "192.168.1.57",
+      "voterName": "",
+      "answers": [
+        { "questionId": "q_1005", "score": 4 },
+        { "questionId": "q_1001", "score": 9 },
+        { "questionId": "q_1002", "score": 9 },
+        { "questionId": "q_1003", "score": 10 }
+      ],
+      "submittedAt": "2026-10-23T10:26:00+08:00"
+    },
+    {
+      "id": "v_3005",
+      "surveyId": "s_2001",
+      "ip": "192.168.1.63",
+      "voterName": "赵六",
+      "answers": [
+        { "questionId": "q_1005", "score": 5 },
+        { "questionId": "q_1001", "score": 7 },
+        { "questionId": "q_1002", "score": 8 },
+        { "questionId": "q_1003", "score": 8 }
+      ],
+      "submittedAt": "2026-10-23T10:31:00+08:00"
+    }
+  ]
+}

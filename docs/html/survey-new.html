@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新增问卷 · 课堂评分投票系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f4fa] text-slate-800">
+  <div class="flex min-h-screen">
+    <aside id="sidebar"></aside>
+    <main class="min-w-0 flex-1">
+      <div id="page" class="mx-auto max-w-4xl px-6 py-10">
+        <a href="surveys.html" class="text-sm text-slate-500 transition hover:text-indigo-600">← 返回问卷列表</a>
+        <h1 class="mt-3 text-2xl font-semibold tracking-tight text-slate-900">新增问卷</h1>
+        <p class="mt-1 text-sm text-slate-500">填写基础信息，并从题库勾选题目、调整展示顺序。</p>
+
+        <form id="survey-form" class="mt-7 space-y-5">
+          <section class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-7 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-900">基础信息</h2>
+            <div class="mt-5 space-y-5">
+              <div>
+                <label for="title" class="block text-sm font-medium text-slate-700">问卷标题 <span class="text-rose-500">*</span></label>
+                <input id="title" type="text" required maxlength="80"
+                  class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                  placeholder="例如：项目实战展示评分（第一期）" />
+              </div>
+              <div>
+                <label for="description" class="block text-sm font-medium text-slate-700">问卷说明</label>
+                <textarea id="description" rows="2" maxlength="300"
+                  class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                  placeholder="可选，向投票人说明评分规则"></textarea>
+              </div>
+              <label class="flex items-center gap-2.5 text-sm text-slate-700">
+                <input id="isOpen" type="checkbox" checked class="h-4 w-4 rounded border-slate-300 accent-indigo-600" />
+                创建后立即开放投票
+              </label>
+            </div>
+          </section>
+
+          <section class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-7 shadow-sm">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold text-slate-900">选择题目</h2>
+              <span id="picked-count" class="text-xs text-slate-500"></span>
+            </div>
+            <div class="mt-5 grid gap-6 md:grid-cols-2">
+              <div>
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">题库</p>
+                <div id="question-picker" class="max-h-80 space-y-1 overflow-auto rounded-xl border border-slate-200 bg-slate-50/50 p-2"></div>
+              </div>
+              <div>
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">已选题目（按展示顺序）</p>
+                <div id="selected-list" class="min-h-[5rem] space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/50 p-2"></div>
+              </div>
+            </div>
+          </section>
+
+          <p id="error" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5 text-sm text-rose-600"></p>
+
+          <div class="flex items-center gap-3">
+            <button type="submit"
+              class="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-violet-500 active:scale-[.98]">保存问卷</button>
+            <a href="surveys.html" class="rounded-xl px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-100">取消</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+  <script>
+    let db = null;
+    let selectedIds = [];
+
+    function showError(message) {
+      const box = document.getElementById("error");
+      box.textContent = message;
+      box.classList.remove("hidden");
+    }
+
+    function renderPicker() {
+      const host = document.getElementById("question-picker");
+      if (!db.questions.length) {
+        host.innerHTML = '<p class="p-3 text-sm text-slate-500">题库为空，请先到题库管理新增题目。</p>';
+        return;
+      }
+      host.innerHTML = db.questions.map((q) => `
+        <label class="flex cursor-pointer items-start gap-2.5 rounded-xl px-2.5 py-2 transition hover:bg-white hover:shadow-sm">
+          <input type="checkbox" class="pick-box mt-0.5 h-4 w-4 rounded border-slate-300 accent-indigo-600"
+            value="${escapeHtml(q.id)}" ${selectedIds.includes(q.id) ? "checked" : ""} />
+          <span class="min-w-0">
+            <span class="block text-sm text-slate-800">${escapeHtml(q.title)}</span>
+            <span class="block text-xs text-slate-400">${q.scoreMin} - ${q.scoreMax} 分</span>
+          </span>
+        </label>`).join("");
+
+      host.querySelectorAll(".pick-box").forEach((box) => {
+        box.addEventListener("change", () => {
+          if (box.checked) {
+            if (!selectedIds.includes(box.value)) selectedIds.push(box.value);
+          } else {
+            selectedIds = selectedIds.filter((id) => id !== box.value);
+          }
+          renderSelected();
+        });
+      });
+    }
+
+    function renderSelected() {
+      const host = document.getElementById("selected-list");
+      document.getElementById("picked-count").textContent = `已选 ${selectedIds.length} 道题`;
+
+      if (!selectedIds.length) {
+        host.innerHTML = '<p class="p-3 text-sm text-slate-400">还没有选择题目</p>';
+        return;
+      }
+
+      host.innerHTML = selectedIds.map((id, index) => {
+        const q = db.questions.find((item) => item.id === id);
+        if (!q) return "";
+        return `
+          <div class="flex items-center gap-2 rounded-xl border border-slate-200/70 bg-white px-2.5 py-2 shadow-sm">
+            <span class="w-5 shrink-0 text-center text-xs font-medium text-slate-400">${index + 1}</span>
+            <span class="min-w-0 flex-1 truncate text-sm text-slate-700">${escapeHtml(q.title)}</span>
+            <button type="button" data-action="up" data-id="${escapeHtml(id)}"
+              class="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-40"
+              ${index === 0 ? "disabled" : ""}>上移</button>
+            <button type="button" data-action="down" data-id="${escapeHtml(id)}"
+              class="rounded-lg border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-40"
+              ${index === selectedIds.length - 1 ? "disabled" : ""}>下移</button>
+            <button type="button" data-action="remove" data-id="${escapeHtml(id)}"
+              class="rounded-lg border border-rose-100 bg-rose-50/60 px-1.5 py-0.5 text-xs text-rose-600 transition hover:bg-rose-100/70">移除</button>
+          </div>`;
+      }).join("");
+
+      host.querySelectorAll("button[data-action]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.id;
+          const index = selectedIds.indexOf(id);
+          if (btn.dataset.action === "up" && index > 0) {
+            [selectedIds[index - 1], selectedIds[index]] = [selectedIds[index], selectedIds[index - 1]];
+          }
+          if (btn.dataset.action === "down" && index < selectedIds.length - 1) {
+            [selectedIds[index + 1], selectedIds[index]] = [selectedIds[index], selectedIds[index + 1]];
+          }
+          if (btn.dataset.action === "remove") {
+            selectedIds = selectedIds.filter((item) => item !== id);
+          }
+          syncPickerChecks();
+          renderSelected();
+        });
+      });
+    }
+
+    function syncPickerChecks() {
+      document.querySelectorAll(".pick-box").forEach((box) => {
+        box.checked = selectedIds.includes(box.value);
+      });
+    }
+
+    function renderAll() {
+      renderPicker();
+      renderSelected();
+    }
+
+    document.getElementById("survey-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      document.getElementById("error").classList.add("hidden");
+
+      const title = document.getElementById("title").value.trim();
+      const description = document.getElementById("description").value.trim();
+
+      if (!title) return showError("请填写问卷标题。");
+      if (!selectedIds.length) return showError("请至少选择一道题目。");
+
+      db.surveys.push({
+        id: nextId("s_", db.surveys),
+        title,
+        description,
+        questionIds: [...selectedIds],
+        isOpen: document.getElementById("isOpen").checked,
+        createdAt: new Date().toISOString(),
+      });
+      saveDB(db);
+      flash("问卷已创建");
+      location.href = "surveys.html";
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!mountAdmin("surveys")) return;
+      consumeFlash();
+      try {
+        db = await loadDB();
+        renderAll();
+      } catch (err) {
+        showFatal(err);
+      }
+    });
+  </script>
+</body>
+</html>

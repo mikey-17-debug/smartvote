@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>题库管理 · 课堂评分投票系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#f3f4fa] text-slate-800">
+  <div class="flex min-h-screen">
+    <aside id="sidebar"></aside>
+    <main class="min-w-0 flex-1">
+      <div id="page" class="mx-auto max-w-5xl px-6 py-10">
+        <header class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-slate-900">题库管理</h1>
+            <p class="mt-1 text-sm text-slate-500">维护评分题，供问卷挑选组合。</p>
+          </div>
+          <a href="question-new.html"
+            class="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-violet-500 active:scale-[.98]">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            新增题目
+          </a>
+        </header>
+
+        <div class="mt-7 flex flex-wrap items-center gap-3">
+          <div class="relative w-full max-w-xs">
+            <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"/>
+            </svg>
+            <input id="keyword" type="search" placeholder="按标题或说明搜索"
+              class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10" />
+          </div>
+          <span id="count" class="text-sm text-slate-500"></span>
+        </div>
+
+        <div id="list" class="mt-5 space-y-3"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+  <script>
+    let db = null;
+    let keyword = "";
+
+    function render() {
+      const list = document.getElementById("list");
+      const keywordLower = keyword.trim().toLowerCase();
+      const items = db.questions.filter((q) => {
+        if (!keywordLower) return true;
+        return `${q.title} ${q.description || ""}`.toLowerCase().includes(keywordLower);
+      });
+
+      document.getElementById("count").textContent = `共 ${db.questions.length} 道题，当前显示 ${items.length} 道`;
+
+      if (!items.length) {
+        list.innerHTML = `
+          <div class="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-12 text-center">
+            <p class="text-sm text-slate-500">没有匹配的题目</p>
+            <a href="question-new.html" class="mt-3 inline-block text-sm font-medium text-indigo-600 transition hover:text-indigo-500">去新增一道题 →</a>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = items.map((q) => {
+        const usedCount = db.surveys.filter((s) => s.questionIds.includes(q.id)).length;
+        return `
+          <article class="qc-fade rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg hover:shadow-indigo-600/5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h2 class="text-sm font-semibold text-slate-900">${escapeHtml(q.title)}</h2>
+                <p class="mt-1 text-sm text-slate-500">${escapeHtml(q.description || "暂无说明")}</p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <a href="question-edit.html?id=${encodeURIComponent(q.id)}"
+                  class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900">编辑</a>
+                <button type="button" data-id="${escapeHtml(q.id)}"
+                  class="delete-btn rounded-xl border border-rose-100 bg-rose-50/60 px-3 py-1.5 text-sm text-rose-600 transition hover:bg-rose-100/70">删除</button>
+              </div>
+            </div>
+            <div class="mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
+              <span class="rounded-full bg-indigo-50 px-2.5 py-1 font-medium text-indigo-600">${q.scoreMin} - ${q.scoreMax} 分</span>
+              <span>被 ${usedCount} 份问卷引用</span>
+              <span>创建于 ${formatTime(q.createdAt)}</span>
+            </div>
+          </article>`;
+      }).join("");
+
+      list.querySelectorAll(".delete-btn").forEach((btn) => {
+        btn.addEventListener("click", () => removeQuestion(btn.dataset.id));
+      });
+    }
+
+    function removeQuestion(id) {
+      const question = db.questions.find((q) => q.id === id);
+      if (!question) return;
+      const usedBy = db.surveys.filter((s) => s.questionIds.includes(id));
+      if (usedBy.length) {
+        notify(`「${question.title}」已被 ${usedBy.length} 份问卷引用，请先从问卷中移除`, "error");
+        return;
+      }
+      if (!confirm(`确定删除题目「${question.title}」？`)) return;
+      db.questions = db.questions.filter((q) => q.id !== id);
+      saveDB(db);
+      notify("题目已删除");
+      render();
+    }
+
+    document.getElementById("keyword").addEventListener("input", (event) => {
+      keyword = event.target.value;
+      render();
+    });
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!mountAdmin("questions")) return;
+      consumeFlash();
+      try {
+        db = await loadDB();
+        render();
+      } catch (err) {
+        showFatal(err);
+      }
+    });
+  </script>
+</body>
+</html>

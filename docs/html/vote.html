@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>问卷评分 · 课堂评分投票系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-100 text-slate-800">
+  <div id="page" class="mx-auto max-w-2xl px-4 py-10 sm:px-6"></div>
+
+  <script src="assets/app.js"></script>
+  <script>
+    let db = null;
+    let survey = null;
+    let questions = [];
+    const clientIp = mockClientIp();
+
+    function renderNotice(title, message) {
+      document.getElementById("page").innerHTML = `
+        <div class="qc-fade rounded-3xl border border-slate-200/80 bg-white/90 p-10 text-center shadow-xl shadow-indigo-600/5 backdrop-blur">
+          <h1 class="text-lg font-semibold tracking-tight text-slate-900">${escapeHtml(title)}</h1>
+          <p class="mt-2 text-sm text-slate-500">${escapeHtml(message)}</p>
+        </div>`;
+    }
+
+    function scoreOptions(question) {
+      const options = [];
+      for (let score = question.scoreMin; score <= question.scoreMax; score += 1) options.push(score);
+      return options;
+    }
+
+    function renderForm() {
+      const questionHtml = questions.map((q, index) => `
+        <div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-slate-900">
+                <span class="mr-1.5 font-semibold text-indigo-400">${String(index + 1).padStart(2, "0")}</span>${escapeHtml(q.title)}
+              </p>
+              ${q.description ? `<p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(q.description)}</p>` : ""}
+            </div>
+            <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">${q.scoreMin}-${q.scoreMax} 分</span>
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2">
+            ${scoreOptions(q).map((score) => `
+              <label class="cursor-pointer">
+                <input type="radio" name="q_${escapeHtml(q.id)}" value="${score}" class="peer sr-only" />
+                <span class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-600 shadow-sm transition duration-150
+                  hover:-translate-y-0.5 hover:border-indigo-400 hover:text-indigo-600
+                  peer-checked:border-transparent peer-checked:bg-gradient-to-br peer-checked:from-indigo-600 peer-checked:to-violet-600 peer-checked:text-white peer-checked:shadow-md peer-checked:shadow-indigo-600/30
+                  peer-focus-visible:ring-4 peer-focus-visible:ring-indigo-500/20">${score}</span>
+              </label>`).join("")}
+          </div>
+        </div>`).join("");
+
+      document.getElementById("page").innerHTML = `
+        <div class="qc-fade overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl shadow-indigo-600/10">
+          <div class="h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500"></div>
+          <header class="px-6 py-6 sm:px-8">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118L2.077 10.1c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+              </svg>
+              课堂评分
+            </span>
+            <h1 class="mt-3 text-xl font-semibold tracking-tight text-slate-900">${escapeHtml(survey.title)}</h1>
+            ${survey.description ? `<p class="mt-2 text-sm leading-6 text-slate-500">${escapeHtml(survey.description)}</p>` : ""}
+          </header>
+
+          <form id="vote-form" class="space-y-4 px-6 pb-7 sm:px-8">
+            ${questionHtml}
+
+            <div class="pt-1">
+              <label for="voterName" class="block text-sm font-medium text-slate-700">姓名（可选）</label>
+              <input id="voterName" type="text" maxlength="20"
+                class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                placeholder="便于老师在统计中识别" />
+            </div>
+
+            <p id="error" class="hidden rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5 text-sm text-rose-600"></p>
+
+            <button type="submit"
+              class="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-violet-500 active:scale-[.99]">
+              提交评分
+            </button>
+            <p class="text-center text-xs text-slate-400">同一 IP 对同一问卷只能提交一次（演示身份：${escapeHtml(clientIp)}）</p>
+          </form>
+        </div>`;
+    }
+
+    function renderSuccess(vote) {
+      document.getElementById("page").innerHTML = `
+        <div class="qc-fade rounded-3xl border border-slate-200/80 bg-white/90 p-10 text-center shadow-xl shadow-indigo-600/5 backdrop-blur">
+          <div class="qc-pop mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-lg shadow-emerald-600/30">
+            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h1 class="mt-5 text-lg font-semibold tracking-tight text-slate-900">提交成功</h1>
+          <p class="mt-2 text-sm text-slate-500">感谢参与「${escapeHtml(survey.title)}」的评分。</p>
+          <p class="mt-1.5 text-xs text-slate-400">提交时间：${formatTime(vote.submittedAt)}</p>
+        </div>`;
+    }
+
+    function showError(message) {
+      const box = document.getElementById("error");
+      box.textContent = message;
+      box.classList.remove("hidden");
+      box.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const surveyId = getQuery("id");
+      if (!surveyId) return renderNotice("问卷不存在", "链接缺少问卷 ID，请联系老师获取正确地址。");
+
+      try {
+        db = await loadDB();
+      } catch (err) {
+        return showFatal(err);
+      }
+
+      survey = db.surveys.find((s) => s.id === surveyId);
+      if (!survey) return renderNotice("问卷不存在", "该问卷可能已被删除，请与老师确认链接。");
+      if (!survey.isOpen) return renderNotice("问卷已关闭", "该问卷当前不接受提交，如有疑问请联系老师。");
+
+      questions = survey.questionIds
+        .map((id) => db.questions.find((q) => q.id === id))
+        .filter(Boolean);
+      if (!questions.length) return renderNotice("问卷暂无题目", "老师还没有为这份问卷添加题目。");
+
+      const submitted = db.votes.some((v) => v.surveyId === survey.id && v.ip === clientIp);
+      if (submitted) return renderNotice("你已提交过", `IP ${clientIp} 已参与过本问卷评分，同一 IP 不能重复提交。`);
+
+      renderForm();
+
+      document.getElementById("vote-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("error").classList.add("hidden");
+
+        const answers = [];
+        for (let i = 0; i < questions.length; i += 1) {
+          const question = questions[i];
+          const picked = document.querySelector(`input[name="q_${question.id}"]:checked`);
+          if (!picked) {
+            return showError(`请为第 ${i + 1} 题「${question.title}」选择分数。`);
+          }
+          answers.push({ questionId: question.id, score: Number(picked.value) });
+        }
+
+        const voterName = document.getElementById("voterName").value.trim();
+        const alreadyVoted = db.votes.some((v) => v.surveyId === survey.id && v.ip === clientIp);
+        if (alreadyVoted) {
+          return showError(`IP ${clientIp} 已参与过本问卷，同一 IP 不能重复提交。`);
+        }
+
+        const vote = {
+          id: nextId("v_", db.votes),
+          surveyId: survey.id,
+          ip: clientIp,
+          voterName,
+          answers,
+          submittedAt: new Date().toISOString(),
+        };
+        db.votes.push(vote);
+        saveDB(db);
+        renderSuccess(vote);
+      });
+    });
+  </script>
+</body>
+</html>
